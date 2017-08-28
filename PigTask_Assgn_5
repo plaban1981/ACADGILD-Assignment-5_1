@@ -1,0 +1,272 @@
+
+grunt> employee = LOAD '/tmp/pig/employee_details.txt' USING PigStorage(',') as (id:int,name:chararray,salary:int,rating:int);
+
+grunt>DUMP employee;
+
+(101,Amitabh,20000,1)
+(102,Shahrukh,10000,2)
+(103,Akshay,11000,3)
+(104,Anubhav,5000,4)
+(105,Pawan,2500,5)
+(106,Aamir,25000,1)
+(107,Salman,17500,2)
+(108,Ranbir,14000,3)
+(109,Katrina,1000,4)
+(110,Priyanka,2000,5)
+(111,Tushar,500,1)
+(112,Ajay,5000,2)
+(113,Jubeen,1000,1)
+(114,Madhuri,2000,2)
+
+Task a.
+
+grunt> employee_order = ORDER employee by rating desc,name asc;
+grunt> employee_ord_limit = LIMIT employee_order 5;
+grunt> dump employee_ord_limit;
+(105,Pawan,2500,5)
+(110,Priyanka,2000,5)
+(104,Anubhav,5000,4)
+(109,Katrina,1000,4)
+(103,Akshay,11000,3)
+
+grunt> employee_top_5 = FOREACH employee_ord_limit GENERATE id,name;
+grunt> dump employee_top_5;
+(105,Pawan)
+(110,Priyanka)
+(104,Anubhav)
+(109,Katrina)
+(103,Akshay)
+
+grunt> STORE employee_top_5 INTO '/home/acadgild/pig/output/Assign_5';
+
+Task b.
+grunt>employee = LOAD '/tmp/pig/employee_details.txt' USING PigStorage(',') as (id:int,name:chararray,salary:int,rating:int);
+
+grunt>employee_order_sal = ORDER employee by salary desc,name asc;grunt> grunt>employee_odd = FILTER employee_order_sal BY (id % 2 != 0);
+grunt>dump employee_odd;
+(101,Amitabh,20000,1)
+(107,Salman,17500,2)
+(103,Akshay,11000,3)
+(105,Pawan,2500,5)
+(113,Jubeen,1000,1)
+(109,Katrina,1000,4)
+(111,Tushar,500,1)
+
+grunt> employee_top_3_sal = LIMIT employee_odd 3;
+grunt> DUMP employee_top_3_sal;
+(101,Amitabh,20000,1)
+(107,Salman,17500,2)
+(103,Akshay,11000,3)
+
+grunt> top_3_salary = FOREACH employee_top_3_sal GENERATE id,name;
+grunt> STORE top_3_salary INTO '/home/acadgild/pig/output/Assign_5';
+
+
+Task c
+grunt>employee_expenses = LOAD '/tmp/pig/employee_expenses.txt' as (id:int,expense:int);
+grunt>DUMP employee_expenses;
+(101,200)
+(102,100)
+(110,400)
+(114,200)
+(119,200)
+(105,100)
+(101,100)
+(104,300)
+(102,400)
+
+grunt> emp_exp_join = JOIN employee by id,employee_expenses by id;
+grunt> describe emp_exp_join;
+emp_exp_join: {employee::id: int,employee::name: chararray,employee::salary: int,employee::rating: int,employee_expenses::id: int,employee_expenses::expense: int}
+grunt> DUMP emp_exp_join;
+
+(101,Amitabh,20000,1,101,100)
+(101,Amitabh,20000,1,101,200)
+(102,Shahrukh,10000,2,102,400)
+(102,Shahrukh,10000,2,102,100)
+(104,Anubhav,5000,4,104,300)
+(105,Pawan,2500,5,105,100)
+(110,Priyanka,2000,5,110,400)
+(114,Madhuri,2000,2,114,200)
+
+grunt> emp_exp_srt = ORDER emp_exp_join by  expense desc,name asc;
+grunt>DUMP emp_exp_srt ;
+(110,Priyanka,2000,5,110,400)
+(102,Shahrukh,10000,2,102,400)
+(104,Anubhav,5000,4,104,300)
+(101,Amitabh,20000,1,101,200)
+(114,Madhuri,2000,2,114,200)
+(101,Amitabh,20000,1,101,100)
+(105,Pawan,2500,5,105,100)
+(102,Shahrukh,10000,2,102,100)
+grunt> emp_expense_det = FOREACH emp_exp_srt generate $0 ,$1,$5;
+grunt> DUMP emp_expense_det;
+
+(110,Priyanka,400)
+(102,Shahrukh,400)
+(104,Anubhav,300)
+(101,Amitabh,200)
+(114,Madhuri,200)
+(101,Amitabh,100)
+(105,Pawan,100)
+(102,Shahrukh,100)
+
+grunt> emp_expense_grp = GROUP emp_exp_srt by $0;
+grunt > DUMP emp_expense_grp;
+
+(101,{(101,Amitabh,20000,1,101,100),(101,Amitabh,20000,1,101,200)})
+(102,{(102,Shahrukh,10000,2,102,100),(102,Shahrukh,10000,2,102,400)})
+(104,{(104,Anubhav,5000,4,104,300)})
+(105,{(105,Pawan,2500,5,105,100)})
+(110,{(110,Priyanka,2000,5,110,400)})
+(114,{(114,Madhuri,2000,2,114,200)})
+
+schema: group:int,emp_exp_srt:bag{:tuple(employee::id:int,employee::name:chararray,employee::salary:int,employee::rating:int,employee_expenses::id:int,employee_expenses::expense:int)}
+grunt>emp_tot_expense = FOREACH emp_expense_grp GENERATE group as id,emp_exp_srt.name as name,SUM(emp_exp_srt.expense) as expense;
+
+grunt> dump emp_tot_expense;
+(101,{(Amitabh),(Amitabh)},300)
+(102,{(Shahrukh),(Shahrukh)},500)
+(104,{(Anubhav)},300)
+(105,{(Pawan)},100)
+(110,{(Priyanka)},400)
+(114,{(Madhuri)},200)
+
+emp_tot_expense: {id: int,name: {(employee::name: chararray)},expense: long}
+grunt> emp_expense_details = FOREACH emp_tot_expense GENERATE id,FLATTEN(name),expense;
+grunt> describe emp_expense_details;
+emp_expense_details: {id: int,name::employee::name: chararray,expense: long}
+
+
+grunt> DUMP emp_expense_details;
+
+(101,Amitabh,300)
+(101,Amitabh,300)
+(102,Shahrukh,500)
+(102,Shahrukh,500)
+(104,Anubhav,300)
+(105,Pawan,100)
+(110,Priyanka,400)
+(114,Madhuri,200)
+
+grunt>  emp_expense_details_unique = DISTINCT emp_expense_details;
+grunt> dump emp_expense_details_unique;
+
+(101,Amitabh,300)
+(102,Shahrukh,500)
+(104,Anubhav,300)
+(105,Pawan,100)
+(110,Priyanka,400)
+(114,Madhuri,200)
+
+grunt> emp_expense_sort_desc = ORDER emp_expense_details_unique by expense desc;
+grunt> DUMP emp_expense_sort_desc;
+(102,Shahrukh,500)
+(110,Priyanka,400)
+(104,Anubhav,300)
+(101,Amitabh,300)
+(114,Madhuri,200)
+(105,Pawan,100)
+
+grunt> employee_expense_out = FOREACH emp_expense_sort_desc GENERATE id,name;
+
+grunt> STORE employee_expense_out INTO '/home/acadgild/pig/output/Assign_5_c';
+
+
+Task d;
+grunt> employees_in_expense = FOREACH employee_expense_out GENERATE $0,$1;
+grunt> STORE employees_in_expense INTO '/home/acadgild/pig/output/Assign_5_d';
+
+Task e
+
+employee = LOAD '/tmp/pig/employee_details.txt' USING PigStorage(',') as (id:int,name:chararray,salary:int,rating:int);
+
+grunt>employee_expenses = LOAD '/tmp/pig/employee_expenses.txt' as (id:int,expense:int);
+employee_full_join = JOIN employee by id LEFT,employee_expenses by id;
+grunt> dump employee_full_join;
+(101,Amitabh,20000,1,101,100)
+(101,Amitabh,20000,1,101,200)
+(102,Shahrukh,10000,2,102,400)
+(102,Shahrukh,10000,2,102,100)
+(103,Akshay,11000,3,,)
+(104,Anubhav,5000,4,104,300)
+(105,Pawan,2500,5,105,100)
+(106,Aamir,25000,1,,)
+(107,Salman,17500,2,,)
+(108,Ranbir,14000,3,,)
+(109,Katrina,1000,4,,)
+(110,Priyanka,2000,5,110,400)
+(111,Tushar,500,1,,)
+(112,Ajay,5000,2,,)
+(113,Jubeen,1000,1,,)
+(114,Madhuri,2000,2,114,200)
+
+grunt> employee_left_det = FOREACH employee_full_join GENERATE $0,$1,$5;
+grunt> dump employee_left_det;
+(101,Amitabh,100)
+(101,Amitabh,200)
+(102,Shahrukh,400)
+(102,Shahrukh,100)
+(103,Akshay,)
+(104,Anubhav,300)
+(105,Pawan,100)
+(106,Aamir,)
+(107,Salman,)
+(108,Ranbir,)
+(109,Katrina,)
+(110,Priyanka,400)
+(111,Tushar,)
+(112,Ajay,)
+(113,Jubeen,)
+(114,Madhuri,200)
+
+
+grunt> employee_left_det_srt = ORDER employee_left_det by $2 ;
+grunt> dump employee_left_det_srt;
+(106,Aamir,)
+(113,Jubeen,)
+(112,Ajay,)
+(111,Tushar,)
+(103,Akshay,)
+(109,Katrina,)
+(108,Ranbir,)
+(107,Salman,)
+(101,Amitabh,100)
+(105,Pawan,100)
+(102,Shahrukh,100)
+(114,Madhuri,200)
+(101,Amitabh,200)
+(104,Anubhav,300)
+(110,Priyanka,400)
+(102,Shahrukh,400)
+
+grunt> emp_temp_srt = FILTER employee_left_det_srt by $2 is NULL;
+grunt> dump emp_temp_srt;
+(113,Jubeen,)
+(112,Ajay,)
+(111,Tushar,)
+(109,Katrina,)
+(108,Ranbir,)
+(107,Salman,)
+(106,Aamir,)
+(103,Akshay,)
+
+grunt> emp_null_exp = FOREACH emp_temp_srt GENERATE $0,$1;
+grunt> dump emp_null_exp;
+
+(113,Jubeen)
+(112,Ajay)
+(111,Tushar)
+(109,Katrina)
+(108,Ranbir)
+(107,Salman)
+(106,Aamir)
+(103,Akshay)
+
+grunt>STORE emp_null_exp INTO '/home/acadgild/pig/output/Assign_5_e';
+
+
+
+
+
+
